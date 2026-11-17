@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>كابتن مسار | اشتراك أسبوعي - نينوى</title>
+  <script src="https://tailwindcss.com"></script>
+  <link href="https://googleapis.com" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com" />
+  <script src="https://unpkg.com"></script>
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #080C14; color: #F8FAFC; }
+    #capten-map { height: 210px; width: 100%; border-radius: 1rem; z-index: 10; }
+    .leaflet-control-attribution { display: none !important; }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.85); opacity: 0.85; }
+      100% { transform: scale(2.3); opacity: 0; }
+    }
+    .radar-active::before {
+      content: ''; position: absolute; inset: -6px; border-radius: 9999px;
+      background: #10B981; animation: pulse-ring 1.6s infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col max-w-md mx-auto border-x border-slate-800/80 shadow-2xl">
+
+  <!-- الشريط العلوي -->
+  <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-extrabold text-xl shadow">م</div>
+        <div>
+          <h1 class="font-extrabold text-base leading-none text-white">كابتن مسار <span class="text-amber-400 text-xs">نينوى</span></h1>
+          <p class="text-[11px] text-slate-400 mt-0.5" id="header-sub">اشتراك أسبوعي 10,000 د.ع</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="playNewOrderSound()" title="اختبار التنبيه الصوتي" class="bg-slate-800 hover:bg-slate-700 text-amber-400 p-2 rounded-xl text-xs border border-slate-700">
+          🔔
+        </button>
+        <button id="btn-online-toggle" onclick="toggleOnline()" class="hidden flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 px-3 py-2 rounded-xl text-xs font-extrabold transition">
+          <span id="radar-indicator" class="relative w-2.5 h-2.5 rounded-full bg-emerald-400 radar-active"></span>
+          <span id="online-label">متاح</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 1. شاشة تسجيل الكابتن ورفع المستمسكات ================= -->
+  <section id="view-onboarding" class="hidden p-4 space-y-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
+      <div class="text-center space-y-1 border-b border-slate-800 pb-3">
+        <h2 class="font-extrabold text-lg text-white">تسجيل كابتن جديد في مسار</h2>
+        <p class="text-xs text-amber-400 font-bold">الاشتراك الأسبوعي: 10,000 د.ع فقط (بدون عمولة على الرحلات)</p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs text-slate-300 mb-1">الاسم الثلاثي للكابتن *</label>
+          <input id="cap-name" type="text" placeholder="مثال: عمر خالد محمد" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-300 mb-1">رقم الهاتف (واتساب فعال) *</label>
+          <input id="cap-phone" type="tel" placeholder="077xxxxxxxx" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none text-left" dir="ltr" />
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">نوع وموديل السيارة *</label>
+            <input id="cap-car" type="text" placeholder="النترا 2020" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">لون السيارة *</label>
+            <input id="cap-color" type="text" placeholder="أبيض" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-300 mb-1">رقم اللوحة (نينوى) *</label>
+          <input id="cap-plate" type="text" placeholder="مثال: 45218 أ - نينوى" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-amber-400 outline-none" />
+        </div>
+
+        <!-- المستمسكات الرسمية -->
+        <div class="pt-2 border-t border-slate-800 space-y-2.5">
+          <div class="text-xs font-extrabold text-amber-400">المستمسكات الرسمية المطلوبة:</div>
+          
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-white">1. الصورة الشخصية للكابتن *</div>
+              <div class="text-[10px] text-slate-400" id="status-doc-selfie">لم يتم الرفع بعد</div>
+            </div>
+            <label class="bg-slate-800 hover:bg-slate-700 text-amber-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer">
+              اختيار صورة
+              <input type="file" accept="image/*" class="hidden" onchange="handleDocUpload(this, 'selfie')" />
+            </label>
+          </div>
+
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-white">2. البطاقة الوطنية الموحدة *</div>
+              <div class="text-[10px] text-slate-400" id="status-doc-id">لم يتم الرفع بعد</div>
+            </div>
+            <label class="bg-slate-800 hover:bg-slate-700 text-amber-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer">
+              اختيار صورة
+              <input type="file" accept="image/*" class="hidden" onchange="handleDocUpload(this, 'idCard')" />
+            </label>
+          </div>
+
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-white">3. إجازة السوق النافذة *</div>
+              <div class="text-[10px] text-slate-400" id="status-doc-license">لم يتم الرفع بعد</div>
+            </div>
+            <label class="bg-slate-800 hover:bg-slate-700 text-amber-400 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer">
+              اختيار صورة
+              <input type="file" accept="image/*" class="hidden" onchange="handleDocUpload(this, 'license')" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="submitCaptainApplication()" class="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold py-3.5 rounded-xl text-sm shadow-lg transition">
+        إرسال الطلب للإدارة وتفعيل الاشتراك
+      </button>
+    </div>
+  </section>
+
+  <!-- ================= 2. شاشة انتظار الموافقة أو انتهاء الاشتراك (7 أيام) ================= -->
+  <section id="view-pending-approval" class="hidden p-5 my-auto">
+    <div class="bg-slate-900 border border-amber-400/30 rounded-3xl p-6 text-center space-y-4 shadow-xl">
+      <div id="lock-icon" class="w-16 h-16 rounded-full bg-amber-400/15 text-amber-400 flex items-center justify-center text-3xl mx-auto">⏳</div>
+      <h2 id="lock-title" class="font-extrabold text-lg text-white">حسابك قيد المراجعة والتوثيق</h2>
+      <p id="lock-desc" class="text-xs text-slate-300 leading-relaxed">
+        تم استلام بياناتك ومستمسكاتك بنجاح. لتفعيل اشتراكك الأسبوعي (<b>10,000 د.ع لمدة 7 أيام</b>)، يرجى مراسلة الإدارة لتأكيد التفعيل.
+      </p>
+      
+      <div id="pending-summary-box" class="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 text-right text-xs space-y-1.5"></div>
+
+      <button onclick="sendDocsToAdminWhatsApp()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3.5 rounded-xl text-xs shadow transition">
+        💬 مراسلة الإدارة لتفعيل اشتراك 7 أيام (10,000 د.ع)
+      </button>
+      
+      <div class="pt-2">
+        <button onclick="resetRegistration()" class="text-[11px] text-slate-400 underline">تعديل البيانات أو المستمسكات</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. واجهة الكابتن النشط ================= -->
+  <main id="view-main" class="hidden flex-1 p-4 pb-24 space-y-4">
+
+    <!-- شريط حالة الاشتراك الأسبوعي -->
+    <div class="bg-gradient-to-l from-amber-400/15 to-slate-900 border border-amber-400/30 rounded-2xl px-4 py-2.5 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-base">⏳</span>
+        <div>
+          <div class="text-[11px] text-slate-300">باقة الاشتراك الأسبوعي (10,000 د.ع)</div>
+          <div class="text-xs font-extrabold text-amber-400" id="sub-countdown-text">متبقي 7 أيام</div>
+        </div>
+      </div>
+      <span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-lg font-bold">0% عمولة رحلات</span>
+    </div>
+
+    <!-- تبويب 1: الطلبات والخريطة -->
+    <div id="tab-requests" class="space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-2 space-y-2 shadow-lg">
+        <div id="capten-map"></div>
+        <div class="flex items-center justify-between px-2 pb-1 text-[11px]">
+          <span class="text-emerald-400 font-bold" id="map-route-info">📍 نينوى: الموصل ⇄ الأقضية والقرى</span>
+          <span class="text-slate-300 font-bold">100% الأجرة للكابتن</span>
+        </div>
+      </div>
+
